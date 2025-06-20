@@ -89,7 +89,7 @@ def generateMsToken(length=107):
 
 class DouyinLiveWebFetcher:
     
-    def __init__(self, live_id):
+    def __init__(self, live_id, on_message=None, on_room_info=None):
         """
         直播间弹幕抓取对象
         :param live_id: 直播间的直播id，打开直播间web首页的链接如：https://live.douyin.com/261378947940，
@@ -101,6 +101,11 @@ class DouyinLiveWebFetcher:
         self.live_url = "https://live.douyin.com/"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " \
                           "Chrome/120.0.0.0 Safari/537.36"
+        self.on_message = on_message
+        self.on_room_info = on_room_info
+        self.room_title = "直播间"
+        self.room_status = "未知"
+        self.viewer_count = "0"
     
     def start(self):
         self._connectWebSocket()
@@ -296,7 +301,16 @@ class DouyinLiveWebFetcher:
         user_name = message.user.nick_name
         user_id = message.user.id
         content = message.content
-        print(f"【聊天msg】[{user_id}]{user_name}: {content}")
+        msg = f"【聊天msg】[{user_id}]{user_name}: {content}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseGiftMsg(self, payload):
         """礼物消息"""
@@ -304,14 +318,32 @@ class DouyinLiveWebFetcher:
         user_name = message.user.nick_name
         gift_name = message.gift.name
         gift_cnt = message.combo_count
-        print(f"【礼物msg】{user_name} 送出了 {gift_name}x{gift_cnt}")
+        msg = f"【礼物msg】{user_name} 送出了 {gift_name}x{gift_cnt}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseLikeMsg(self, payload):
         '''点赞消息'''
         message = LikeMessage().parse(payload)
         user_name = message.user.nick_name
         count = message.count
-        print(f"【点赞msg】{user_name} 点了{count}个赞")
+        msg = f"【点赞msg】{user_name} 点了{count}个赞"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseMemberMsg(self, payload):
         '''进入直播间消息'''
@@ -319,27 +351,63 @@ class DouyinLiveWebFetcher:
         user_name = message.user.nick_name
         user_id = message.user.id
         gender = ["女", "男"][message.user.gender]
-        print(f"【进场msg】[{user_id}][{gender}]{user_name} 进入了直播间")
+        msg = f"【进场msg】[{user_id}][{gender}]{user_name} 进入了直播间"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseSocialMsg(self, payload):
         '''关注消息'''
         message = SocialMessage().parse(payload)
         user_name = message.user.nick_name
         user_id = message.user.id
-        print(f"【关注msg】[{user_id}]{user_name} 关注了主播")
+        msg = f"【关注msg】[{user_id}]{user_name} 关注了主播"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseRoomUserSeqMsg(self, payload):
         '''直播间统计'''
         message = RoomUserSeqMessage().parse(payload)
         current = message.total
         total = message.total_pv_for_anchor
-        print(f"【统计msg】当前观看人数: {current}, 累计观看人数: {total}")
+        msg = f"【统计msg】当前观看人数: {current}, 累计观看人数: {total}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseFansclubMsg(self, payload):
         '''粉丝团消息'''
         message = FansclubMessage().parse(payload)
         content = message.content
-        print(f"【粉丝团msg】 {content}")
+        msg = f"【粉丝团msg】 {content}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseEmojiChatMsg(self, payload):
         '''聊天表情包消息'''
@@ -348,33 +416,97 @@ class DouyinLiveWebFetcher:
         user = message.user
         common = message.common
         default_content = message.default_content
-        print(f"【聊天表情包id】 {emoji_id},user：{user},common:{common},default_content:{default_content}")
+        msg = f"【聊天表情包id】 {emoji_id},user：{user},common:{common},default_content:{default_content}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseRoomMsg(self, payload):
         message = RoomMessage().parse(payload)
+        # 尝试获取房间标题
+        title = getattr(message, 'title', None)
+        if title:
+            self.room_title = title
         common = message.common
         room_id = common.room_id
-        print(f"【直播间msg】直播间id:{room_id}")
+        msg = f"【直播间msg】直播间id:{room_id}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseRoomStatsMsg(self, payload):
         message = RoomStatsMessage().parse(payload)
-        display_long = message.display_long
-        print(f"【直播间统计msg】{display_long}")
+        display_long = getattr(message, 'display_long', None)
+        if display_long:
+            # 尝试从 display_long 提取在线人数
+            import re
+            m = re.search(r'(\d+[\u4e00-\u9fa5]*)在线观众', display_long)
+            if m:
+                self.viewer_count = m.group(1)
+        msg = f"【直播间统计msg】{display_long}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseRankMsg(self, payload):
         message = RoomRankMessage().parse(payload)
         ranks_list = message.ranks_list
-        print(f"【直播间排行榜msg】{ranks_list}")
+        msg = f"【直播间排行榜msg】{ranks_list}"
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
     
     def _parseControlMsg(self, payload):
         '''直播间状态消息'''
         message = ControlMessage().parse(payload)
-        
         if message.status == 3:
-            print("直播间已结束")
+            self.room_status = "已结束"
+        else:
+            self.room_status = "直播中"
+        print("直播间状态：", self.room_status)
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })
+        if message.status == 3:
             self.stop()
     
     def _parseRoomStreamAdaptationMsg(self, payload):
         message = RoomStreamAdaptationMessage().parse(payload)
         adaptationType = message.adaptation_type
-        print(f'直播间adaptation: {adaptationType}')
+        msg = f'直播间adaptation: {adaptationType}'
+        print(msg)
+        if self.on_message:
+            self.on_message({"raw": msg})
+        if self.on_room_info:
+            self.on_room_info({
+                "title": self.room_title,
+                "viewer_count": self.viewer_count,
+                "status": self.room_status
+            })

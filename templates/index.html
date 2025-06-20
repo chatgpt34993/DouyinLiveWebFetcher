@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title id="page-title">直播间</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+            background: #f6f7fb;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 700px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 32px 36px 24px 36px;
+        }
+        .header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+            margin-bottom: 18px;
+        }
+        .room-title {
+            font-size: 2em;
+            font-weight: bold;
+            color: #222;
+            letter-spacing: 1px;
+        }
+        .room-meta {
+            text-align: right;
+        }
+        .room-meta span {
+            display: inline-block;
+            margin-left: 18px;
+            color: #888;
+            font-size: 1em;
+        }
+        .msg-list {
+            max-height: 520px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .msg-item {
+            background: #f3f6fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            padding: 10px 16px;
+            font-size: 1.08em;
+            color: #333;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            transition: background 0.2s;
+        }
+        .msg-item:last-child {
+            margin-bottom: 0;
+        }
+        @media (max-width: 800px) {
+            .container { padding: 16px 6px; }
+            .header { flex-direction: column; align-items: flex-start; }
+            .room-meta { text-align: left; margin-top: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="room-title" id="title">直播间</div>
+            <div class="room-meta">
+                <span>在线人数：<span id="viewer_count">0</span></span>
+                <span>状态：<span id="status">未知</span></span>
+            </div>
+        </div>
+        <div class="msg-list" id="msg_list"></div>
+    </div>
+    <script>
+        var socket = io();
+        socket.on('messages', function(msgs) {
+            var msgList = document.getElementById('msg_list');
+            msgList.innerHTML = '';
+            msgs.forEach(function(msg) {
+                var div = document.createElement('div');
+                div.className = 'msg-item';
+                div.textContent = msg.raw;
+                msgList.appendChild(div);
+            });
+            msgList.scrollTop = msgList.scrollHeight;
+        });
+        socket.on('room_info', function(info) {
+            if(info.title !== undefined) {
+                document.getElementById('title').textContent = info.title;
+                document.title = info.title + ' - 直播间';
+            }
+            if(info.viewer_count !== undefined) document.getElementById('viewer_count').textContent = info.viewer_count;
+            if(info.status !== undefined) document.getElementById('status').textContent = info.status;
+        });
+    </script>
+</body>
+</html>
