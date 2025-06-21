@@ -109,6 +109,8 @@ class DouyinLiveWebFetcher:
         self.viewer_count = "0"
     
     def start(self):
+        # 启动时主动获取一次房间状态
+        self.get_room_status()
         self._connectWebSocket()
     
     def stop(self):
@@ -182,10 +184,21 @@ class DouyinLiveWebFetcher:
         data = resp.json().get('data')
         if data:
             room_status = data.get('room_status')
+            # 0=直播中, 2=已结束, 1=准备中
+            if room_status == 0:
+                self.room_status = "直播中"
+            elif room_status == 2:
+                self.room_status = "已结束"
+            elif room_status == 1:
+                self.room_status = "准备中"
+            else:
+                self.room_status = str(room_status)
             user = data.get('user')
-            user_id = user.get('id_str')
-            nickname = user.get('nickname')
-            print(f"【{nickname}】[{user_id}]直播间：{['正在直播', '已结束'][bool(room_status)]}.")
+            user_id = user.get('id_str') if user else ''
+            nickname = user.get('nickname') if user else ''
+            print(f"【{nickname}】[{user_id}]直播间：{self.room_status}.")
+        else:
+            self.room_status = "未知"
     
     def _connectWebSocket(self):
         """
@@ -485,6 +498,7 @@ class DouyinLiveWebFetcher:
     def _parseRankMsg(self, payload):
         message = RoomRankMessage().parse(payload)
         ranks_list = message.ranks_list
+        print("收到排行榜 ranks_list:", ranks_list)
         msg = f"【直播间排行榜msg】{ranks_list}"
         print(msg)
         if self.on_message:
@@ -520,7 +534,9 @@ class DouyinLiveWebFetcher:
         for attr in dir(message):
             if not attr.startswith('_'):
                 print(f"{attr}: {getattr(message, attr, None)}")
+        status_found = False
         if hasattr(message, 'status'):
+            status_found = True
             if message.status == 3:
                 self.room_status = "已结束"
             elif message.status == 2:
@@ -529,6 +545,9 @@ class DouyinLiveWebFetcher:
                 self.room_status = "直播中"
             else:
                 self.room_status = str(message.status)
+        # 如果没有推送 status，主动查一次
+        if not status_found or self.room_status == "未知":
+            self.get_room_status()
         if self.on_room_info:
             self.on_room_info({
                 "title": self.room_title,

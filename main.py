@@ -10,6 +10,7 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO
 from liveMan import DouyinLiveWebFetcher
 import threading
+import time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -24,6 +25,7 @@ room_info = {
 }
 
 rank_list = []
+rank_list_update_time = 0
 
 def on_new_message(msg):
     global messages
@@ -42,9 +44,10 @@ def on_room_info(info):
     socketio.emit('room_info', room_info)
 
 def on_rank_list(fans):
-    global rank_list
+    global rank_list, rank_list_update_time
     rank_list = fans
-    socketio.emit('rank_list', rank_list)
+    rank_list_update_time = int(time.time())
+    socketio.emit('rank_list', {'fans': rank_list, 'update_time': rank_list_update_time})
 
 @app.route('/')
 def index():

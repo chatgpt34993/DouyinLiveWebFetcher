@@ -110,46 +110,47 @@
     </style>
 </head>
 <body>
-    <div class="panel">
-        <div style="display: flex;">
-            <div style="width: 160px; margin-right: 24px;">
-                <h3 style="font-size:1.1em;margin-bottom:8px;">粉丝榜</h3>
-                <ul id="rank_list" style="list-style:none;padding:0;margin:0;">
-                </ul>
+    <div class="panel" style="display: flex; flex-direction: row;">
+        <!-- 左侧粉丝榜 -->
+        <div class="fans-list-card" style="width: 180px; min-width: 140px; background: #f9fafb; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); margin: 32px 18px 0 24px; padding: 18px 10px 18px 10px; display: flex; flex-direction: column; align-items: center;">
+            <div style="font-size: 1.1em; font-weight: bold; color: #2563eb; margin-bottom: 10px; letter-spacing: 1px;">粉丝榜</div>
+            <ul id="rank_list" style="list-style: none; padding: 0; margin: 0; width: 100%;">
+                <!-- 动态渲染 -->
+            </ul>
+        </div>
+        <!-- 右侧主内容区 -->
+        <div style="flex: 1; min-width: 0;">
+            <div class="panel-header">
+                <div class="panel-title" id="title">直播间</div>
+                <div class="panel-actions">
+                    <button title="刷新" onclick="window.location.reload()">
+                        &#x21bb;
+                    </button>
+                </div>
             </div>
-            <div style="flex:1;">
-                <div class="panel-header">
-                    <div class="panel-title" id="title">直播间</div>
-                    <div class="panel-actions">
-                        <button title="刷新" onclick="window.location.reload()">
-                            &#x21bb;
-                        </button>
-                    </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-num stat-blue" id="stat-danmu">0</div>
+                    <div class="stat-label">弹幕</div>
                 </div>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-num stat-blue" id="stat-danmu">0</div>
-                        <div class="stat-label">弹幕</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-num stat-green" id="stat-join">0</div>
-                        <div class="stat-label">进场</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-num stat-yellow" id="stat-like">0</div>
-                        <div class="stat-label">点赞</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-num stat-pink" id="stat-gift">0</div>
-                        <div class="stat-label">礼物</div>
-                    </div>
+                <div class="stat-card">
+                    <div class="stat-num stat-green" id="stat-join">0</div>
+                    <div class="stat-label">进场</div>
                 </div>
-                <div class="room-meta">
-                    <span>在线人数：<span id="viewer_count">0</span></span>
-                    <span>状态：<span id="status">未知</span></span>
+                <div class="stat-card">
+                    <div class="stat-num stat-yellow" id="stat-like">0</div>
+                    <div class="stat-label">点赞</div>
                 </div>
-                <div class="msg-list" id="msg_list"></div>
+                <div class="stat-card">
+                    <div class="stat-num stat-pink" id="stat-gift">0</div>
+                    <div class="stat-label">礼物</div>
+                </div>
             </div>
+            <div class="room-meta">
+                <span>在线人数：<span id="viewer_count">0</span></span>
+                <span>状态：<span id="status">未知</span></span>
+            </div>
+            <div class="msg-list" id="msg_list"></div>
         </div>
     </div>
     <script>
@@ -187,20 +188,63 @@
             if(info.viewer_count !== undefined) document.getElementById('viewer_count').textContent = info.viewer_count;
             if(info.status !== undefined) document.getElementById('status').textContent = info.status;
         });
-        socket.on('rank_list', function(fans) {
+        socket.on('rank_list', function(data) {
+            var fans = data.fans || [];
+            var update_time = data.update_time;
             var ul = document.getElementById('rank_list');
             ul.innerHTML = '';
-            fans.forEach(function(fan) {
+            if (!fans || fans.length === 0) {
                 var li = document.createElement('li');
-                li.style.display = 'flex'; li.style.alignItems = 'center'; li.style.marginBottom = '8px';
+                li.style.textAlign = 'center';
+                li.style.color = '#bbb';
+                li.style.fontSize = '0.98em';
+                li.textContent = '暂无数据';
+                ul.appendChild(li);
+                return;
+            }
+            fans.slice(0, 10).forEach(function(fan, idx) {
+                var li = document.createElement('li');
+                li.style.display = 'flex';
+                li.style.alignItems = 'center';
+                li.style.marginBottom = '12px';
+                var rank = document.createElement('span');
+                rank.textContent = idx + 1;
+                rank.style.display = 'inline-block';
+                rank.style.width = '22px';
+                rank.style.textAlign = 'center';
+                rank.style.fontWeight = 'bold';
+                rank.style.color = idx === 0 ? '#eab308' : (idx === 1 ? '#a3a3a3' : (idx === 2 ? '#f87171' : '#888'));
                 var img = document.createElement('img');
-                img.src = fan.avatar || '';
-                img.style.width = '32px'; img.style.height = '32px'; img.style.borderRadius = '50%'; img.style.marginRight = '8px';
-                var span = document.createElement('span');
-                span.textContent = fan.nick_name;
-                li.appendChild(img); li.appendChild(span);
+                img.src = fan.avatar || 'https://lf3-static.bytednsdoc.com/obj/eden-cn/uhbfnupenuhf/favicon.ico';
+                img.style.width = '32px';
+                img.style.height = '32px';
+                img.style.borderRadius = '50%';
+                img.style.margin = '0 8px';
+                img.style.objectFit = 'cover';
+                var name = document.createElement('span');
+                name.textContent = fan.nick_name || '匿名';
+                name.style.flex = '1';
+                name.style.fontSize = '1em';
+                name.style.color = '#333';
+                li.appendChild(rank);
+                li.appendChild(img);
+                li.appendChild(name);
                 ul.appendChild(li);
             });
+            var timeDiv = document.getElementById('rank_list_time');
+            if (!timeDiv) {
+                timeDiv = document.createElement('div');
+                timeDiv.id = 'rank_list_time';
+                timeDiv.style.fontSize = '0.85em';
+                timeDiv.style.color = '#888';
+                timeDiv.style.textAlign = 'center';
+                timeDiv.style.marginTop = '8px';
+                ul.parentNode.appendChild(timeDiv);
+            }
+            if (update_time) {
+                var d = new Date(update_time * 1000);
+                timeDiv.textContent = '更新时间: ' + d.toLocaleTimeString();
+            }
         });
     </script>
 </body>
