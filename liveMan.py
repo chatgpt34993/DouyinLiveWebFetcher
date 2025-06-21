@@ -103,6 +103,7 @@ class DouyinLiveWebFetcher:
                           "Chrome/120.0.0.0 Safari/537.36"
         self.on_message = on_message
         self.on_room_info = on_room_info
+        self.on_rank_list = None  # 新增，推送粉丝榜
         self.room_title = "直播间"
         self.room_status = "未知"
         self.viewer_count = "0"
@@ -269,24 +270,26 @@ class DouyinLiveWebFetcher:
         # 根据消息类别解析消息体
         for msg in response.messages_list:
             method = msg.method
-            try:
-                {
-                    'WebcastChatMessage': self._parseChatMsg,  # 聊天消息
-                    'WebcastGiftMessage': self._parseGiftMsg,  # 礼物消息
-                    'WebcastLikeMessage': self._parseLikeMsg,  # 点赞消息
-                    'WebcastMemberMessage': self._parseMemberMsg,  # 进入直播间消息
-                    'WebcastSocialMessage': self._parseSocialMsg,  # 关注消息
-                    'WebcastRoomUserSeqMessage': self._parseRoomUserSeqMsg,  # 直播间统计
-                    'WebcastFansclubMessage': self._parseFansclubMsg,  # 粉丝团消息
-                    'WebcastControlMessage': self._parseControlMsg,  # 直播间状态消息
-                    'WebcastEmojiChatMessage': self._parseEmojiChatMsg,  # 聊天表情包消息
-                    'WebcastRoomStatsMessage': self._parseRoomStatsMsg,  # 直播间统计信息
-                    'WebcastRoomMessage': self._parseRoomMsg,  # 直播间信息
-                    'WebcastRoomRankMessage': self._parseRankMsg,  # 直播间排行榜信息
-                    'WebcastRoomStreamAdaptationMessage': self._parseRoomStreamAdaptationMsg,  # 直播间流配置
-                }.get(method)(msg.payload)
-            except Exception:
-                pass
+            handler = {
+                'WebcastChatMessage': self._parseChatMsg,  # 聊天消息
+                'WebcastGiftMessage': self._parseGiftMsg,  # 礼物消息
+                'WebcastLikeMessage': self._parseLikeMsg,  # 点赞消息
+                'WebcastMemberMessage': self._parseMemberMsg,  # 进入直播间消息
+                'WebcastSocialMessage': self._parseSocialMsg,  # 关注消息
+                'WebcastRoomUserSeqMessage': self._parseRoomUserSeqMsg,  # 直播间统计
+                'WebcastFansclubMessage': self._parseFansclubMsg,  # 粉丝团消息
+                'WebcastControlMessage': self._parseControlMsg,  # 直播间状态消息
+                'WebcastEmojiChatMessage': self._parseEmojiChatMsg,  # 聊天表情包消息
+                'WebcastRoomStatsMessage': self._parseRoomStatsMsg,  # 直播间统计信息
+                'WebcastRoomMessage': self._parseRoomMsg,  # 直播间信息
+                'WebcastRoomRankMessage': self._parseRankMsg,  # 直播间排行榜信息
+                'WebcastRoomStreamAdaptationMessage': self._parseRoomStreamAdaptationMsg,  # 直播间流配置
+            }.get(method)
+            if handler:
+                try:
+                    handler(msg.payload)
+                except Exception:
+                    pass
     
     def _wsOnError(self, ws, error):
         print("WebSocket error: ", error)
@@ -431,19 +434,27 @@ class DouyinLiveWebFetcher:
         message = RoomMessage().parse(payload)
         print("RoomMessage内容：", message)
         print("RoomMessage属性：", dir(message))
-        # 你可以试试这些字段
-        if hasattr(message, 'title') and message.title:
-            self.room_title = message.title
-        elif hasattr(message, 'owner') and hasattr(message.owner, 'nickname'):
-            self.room_title = message.owner.nickname
-        elif hasattr(message, 'common') and hasattr(message.common, 'title'):
-            self.room_title = message.common.title
-        common = message.common
-        room_id = common.room_id
-        msg = f"【直播间msg】直播间id:{room_id}"
-        print(msg)
-        if self.on_message:
-            self.on_message({"raw": msg})
+        for attr in dir(message):
+            if not attr.startswith('_'):
+                print(f"{attr}: {getattr(message, attr, None)}")
+        # 优先用 owner.nick_name 作为标题
+        title = None
+        owner = getattr(message, 'owner', None)
+        if owner:
+            nick_name = getattr(owner, 'nick_name', None)
+            if nick_name:
+                title = nick_name
+        # 其次尝试 common.title
+        if not title:
+            common = getattr(message, 'common', None)
+            if common:
+                common_title = getattr(common, 'title', None)
+                if common_title:
+                    title = common_title
+        if title:
+            self.room_title = title
+        # 也可打印 self.room_title 便于调试
+        print("当前room_title:", self.room_title)
         if self.on_room_info:
             self.on_room_info({
                 "title": self.room_title,
@@ -484,13 +495,31 @@ class DouyinLiveWebFetcher:
                 "viewer_count": self.viewer_count,
                 "status": self.room_status
             })
+        # 新增：推送粉丝榜到前端
+        if hasattr(self, 'on_rank_list') and callable(self.on_rank_list):
+            fans = []
+            for rank in ranks_list:
+                user = getattr(rank, 'user', None)
+                if user:
+                    avatar = ""
+                    avatar_thumb = getattr(user, "avatar_thumb", None)
+                    if avatar_thumb:
+                        url_list = getattr(avatar_thumb, "url_list_list", [])
+                        if url_list:
+                            avatar = url_list[0]
+                    fans.append({
+                        "nick_name": getattr(user, "nick_name", ""),
+                        "avatar": avatar
+                    })
+            self.on_rank_list(fans)
     
     def _parseControlMsg(self, payload):
-        '''直播间状态消息'''
         message = ControlMessage().parse(payload)
         print("ControlMessage内容：", message)
         print("ControlMessage属性：", dir(message))
-        # 你可以试试这些字段
+        for attr in dir(message):
+            if not attr.startswith('_'):
+                print(f"{attr}: {getattr(message, attr, None)}")
         if hasattr(message, 'status'):
             if message.status == 3:
                 self.room_status = "已结束"
@@ -500,15 +529,12 @@ class DouyinLiveWebFetcher:
                 self.room_status = "直播中"
             else:
                 self.room_status = str(message.status)
-        # 推送
         if self.on_room_info:
             self.on_room_info({
                 "title": self.room_title,
                 "viewer_count": self.viewer_count,
                 "status": self.room_status
             })
-        if hasattr(message, 'status') and message.status == 3:
-            self.stop()
     
     def _parseRoomStreamAdaptationMsg(self, payload):
         message = RoomStreamAdaptationMessage().parse(payload)

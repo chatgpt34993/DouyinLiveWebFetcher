@@ -23,28 +23,36 @@ room_info = {
     'status': '未知'
 }
 
+rank_list = []
+
 def on_new_message(msg):
     global messages
+    print("on_new_message 被调用", msg)
     messages.append(msg)
     messages = messages[-100:]
     socketio.emit('messages', messages)
-    # 每次有新消息也推送最新房间信息
     socketio.emit('room_info', room_info)
 
 def on_room_info(info):
     global room_info
-    # info 需包含 title, viewer_count, status
+    print("on_room_info 被调用", info)
     for k in ['title', 'viewer_count', 'status']:
         if k in info:
             room_info[k] = info[k]
     socketio.emit('room_info', room_info)
+
+def on_rank_list(fans):
+    global rank_list
+    rank_list = fans
+    socketio.emit('rank_list', rank_list)
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    live_id = '876118847995'
+    live_id = '285183699632'
     room = DouyinLiveWebFetcher(live_id, on_message=on_new_message, on_room_info=on_room_info)
+    setattr(room, 'on_rank_list', on_rank_list)
     threading.Thread(target=room.start, daemon=True).start()
     socketio.run(app, debug=True)
