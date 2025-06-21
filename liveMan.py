@@ -151,13 +151,13 @@ class DouyinLiveWebFetcher:
             response.raise_for_status()
         except Exception as err:
             print("【X】Request the live room url error: ", err)
+            return None
         else:
             match = re.search(r'roomId\\":\\"(\d+)\\"', response.text)
             if match is None or len(match.groups()) < 1:
                 print("【X】No match found for roomId")
-            
+                return None
             self.__room_id = match.group(1)
-            
             return self.__room_id
     
     def get_room_status(self):
@@ -429,10 +429,15 @@ class DouyinLiveWebFetcher:
     
     def _parseRoomMsg(self, payload):
         message = RoomMessage().parse(payload)
-        # 尝试获取房间标题
-        title = getattr(message, 'title', None)
-        if title:
-            self.room_title = title
+        print("RoomMessage内容：", message)
+        print("RoomMessage属性：", dir(message))
+        # 你可以试试这些字段
+        if hasattr(message, 'title') and message.title:
+            self.room_title = message.title
+        elif hasattr(message, 'owner') and hasattr(message.owner, 'nickname'):
+            self.room_title = message.owner.nickname
+        elif hasattr(message, 'common') and hasattr(message.common, 'title'):
+            self.room_title = message.common.title
         common = message.common
         room_id = common.room_id
         msg = f"【直播间msg】直播间id:{room_id}"
@@ -483,18 +488,26 @@ class DouyinLiveWebFetcher:
     def _parseControlMsg(self, payload):
         '''直播间状态消息'''
         message = ControlMessage().parse(payload)
-        if message.status == 3:
-            self.room_status = "已结束"
-        else:
-            self.room_status = "直播中"
-        print("直播间状态：", self.room_status)
+        print("ControlMessage内容：", message)
+        print("ControlMessage属性：", dir(message))
+        # 你可以试试这些字段
+        if hasattr(message, 'status'):
+            if message.status == 3:
+                self.room_status = "已结束"
+            elif message.status == 2:
+                self.room_status = "准备中"
+            elif message.status == 1:
+                self.room_status = "直播中"
+            else:
+                self.room_status = str(message.status)
+        # 推送
         if self.on_room_info:
             self.on_room_info({
                 "title": self.room_title,
                 "viewer_count": self.viewer_count,
                 "status": self.room_status
             })
-        if message.status == 3:
+        if hasattr(message, 'status') and message.status == 3:
             self.stop()
     
     def _parseRoomStreamAdaptationMsg(self, payload):

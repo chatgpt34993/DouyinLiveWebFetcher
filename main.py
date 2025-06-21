@@ -44,7 +44,7 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    live_id = '737508776356'
+    live_id = '876118847995'
     room = DouyinLiveWebFetcher(live_id, on_message=on_new_message, on_room_info=on_room_info)
     threading.Thread(target=room.start, daemon=True).start()
     socketio.run(app, debug=True)

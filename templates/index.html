@@ -4,48 +4,86 @@
     <meta charset="UTF-8">
     <title id="page-title">直播间</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+            font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
             background: #f6f7fb;
             margin: 0;
             padding: 0;
         }
-        .container {
-            max-width: 700px;
+        .panel {
+            max-width: 800px;
             margin: 40px auto;
             background: #fff;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-            padding: 32px 36px 24px 36px;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.09);
+            padding: 0 0 32px 0;
+            overflow: hidden;
         }
-        .header {
+        .panel-header {
             display: flex;
-            align-items: flex-end;
+            align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 12px;
-            margin-bottom: 18px;
+            background: #f3f6fa;
+            padding: 24px 36px 18px 36px;
+            border-bottom: 1px solid #e5e7eb;
         }
-        .room-title {
-            font-size: 2em;
-            font-weight: bold;
+        .panel-title {
+            font-size: 2.1em;
+            font-weight: 700;
             color: #222;
             letter-spacing: 1px;
         }
-        .room-meta {
-            text-align: right;
-        }
-        .room-meta span {
-            display: inline-block;
-            margin-left: 18px;
+        .panel-actions button {
+            background: none;
+            border: none;
             color: #888;
+            font-size: 1.5em;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .panel-actions button:hover {
+            color: #222;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+            padding: 28px 36px 0 36px;
+        }
+        .stat-card {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 18px 0 12px 0;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .stat-num {
+            font-size: 2.1em;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .stat-label {
             font-size: 1em;
+            color: #666;
+        }
+        .stat-blue { color: #2563eb; }
+        .stat-green { color: #059669; }
+        .stat-yellow { color: #d97706; }
+        .stat-pink { color: #db2777; }
+        .room-meta {
+            display: flex;
+            justify-content: flex-end;
+            gap: 32px;
+            padding: 12px 36px 0 36px;
+            color: #888;
+            font-size: 1.08em;
         }
         .msg-list {
-            max-height: 520px;
+            max-height: 420px;
             overflow-y: auto;
-            margin-top: 10px;
+            margin: 24px 36px 0 36px;
         }
         .msg-item {
             background: #f3f6fa;
@@ -60,30 +98,71 @@
         .msg-item:last-child {
             margin-bottom: 0;
         }
-        @media (max-width: 800px) {
-            .container { padding: 16px 6px; }
-            .header { flex-direction: column; align-items: flex-start; }
-            .room-meta { text-align: left; margin-top: 8px; }
+        @media (max-width: 900px) {
+            .panel { max-width: 99vw; }
+            .panel-header, .stats-grid, .room-meta, .msg-list { padding-left: 12px; padding-right: 12px; }
+            .stats-grid { gap: 8px; }
+        }
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .room-meta { flex-direction: column; gap: 6px; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="room-title" id="title">直播间</div>
-            <div class="room-meta">
-                <span>在线人数：<span id="viewer_count">0</span></span>
-                <span>状态：<span id="status">未知</span></span>
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title" id="title">直播间</div>
+            <div class="panel-actions">
+                <button title="刷新" onclick="window.location.reload()">
+                    &#x21bb;
+                </button>
             </div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-num stat-blue" id="stat-danmu">0</div>
+                <div class="stat-label">弹幕</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num stat-green" id="stat-join">0</div>
+                <div class="stat-label">进场</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num stat-yellow" id="stat-like">0</div>
+                <div class="stat-label">点赞</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num stat-pink" id="stat-gift">0</div>
+                <div class="stat-label">礼物</div>
+            </div>
+        </div>
+        <div class="room-meta">
+            <span>在线人数：<span id="viewer_count">0</span></span>
+            <span>状态：<span id="status">未知</span></span>
         </div>
         <div class="msg-list" id="msg_list"></div>
     </div>
     <script>
         var socket = io();
+        // 统计计数
+        let stat = { danmu: 0, join: 0, like: 0, gift: 0 };
+        function updateStats(msg) {
+            if (msg.raw.startsWith("【聊天msg】")) stat.danmu++;
+            else if (msg.raw.startsWith("【进场msg】")) stat.join++;
+            else if (msg.raw.startsWith("【点赞msg】")) stat.like++;
+            else if (msg.raw.startsWith("【礼物msg】")) stat.gift++;
+            document.getElementById('stat-danmu').textContent = stat.danmu;
+            document.getElementById('stat-join').textContent = stat.join;
+            document.getElementById('stat-like').textContent = stat.like;
+            document.getElementById('stat-gift').textContent = stat.gift;
+        }
         socket.on('messages', function(msgs) {
             var msgList = document.getElementById('msg_list');
             msgList.innerHTML = '';
+            stat = { danmu: 0, join: 0, like: 0, gift: 0 };
             msgs.forEach(function(msg) {
+                updateStats(msg);
                 var div = document.createElement('div');
                 div.className = 'msg-item';
                 div.textContent = msg.raw;
