@@ -514,6 +514,7 @@ class DouyinLiveWebFetcher:
             fans = []
             for rank in ranks_list:
                 user = getattr(rank, 'user', None)
+                print("rank user:", user)  # 增加日志
                 if user:
                     avatar = ""
                     avatar_thumb = getattr(user, "avatar_thumb", None)
@@ -525,6 +526,7 @@ class DouyinLiveWebFetcher:
                         "nick_name": getattr(user, "nick_name", ""),
                         "avatar": avatar
                     })
+            print("推送到前端的fans:", fans)  # 增加日志
             self.on_rank_list(fans)
     
     def _parseControlMsg(self, payload):
