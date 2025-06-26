@@ -43,9 +43,11 @@ def build_current_platform():
     if system == "Windows":
         exe_name = "DouyinLiveMonitor.exe"
         print("检测到Windows系统，将生成.exe文件")
+        script_file = "app_test/app_windows.py"
     else:
         exe_name = "DouyinLiveMonitor"
         print(f"检测到{system}系统，将生成可执行文件")
+        script_file = "app_test/app_windows.py"
     
     try:
         print("开始打包...")
@@ -71,7 +73,7 @@ def build_current_platform():
             "--hidden-import", "openpyxl",
             "--hidden-import", "webbrowser",
             "--name", exe_name,
-            "app_test/app.py"
+            script_file
         ]
         
         subprocess.run(cmd, check=True)
