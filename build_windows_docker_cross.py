@@ -28,8 +28,9 @@ def build_windows_with_docker():
         return False
     
     # 检查是否在正确的目录
-    if not os.path.exists('app_test/app.py'):
+    if not os.path.exists('app_test/app_windows.py'):
         print("错误：请在项目根目录运行此脚本")
+        print("确保app_test/app_windows.py文件存在")
         return False
     
     try:
@@ -37,10 +38,11 @@ def build_windows_with_docker():
         
         # 使用PyInstaller Windows Docker镜像
         cmd = [
-            "docker", "run", "--rm", "-v", f"{os.getcwd()}:/src",
+            "docker", "run", "--rm", "-v", f"{os.getcwd()}:/src", "-w", "/src",
             "cdrx/pyinstaller-windows:python3",
             "pyinstaller",
             "--onefile",
+            "--windowed",  # 添加窗口模式，避免控制台窗口
             "--add-data", "app_test/templates;templates",
             "--add-data", "sign.js;.",
             "--add-data", "liveMan.py;.",
@@ -59,8 +61,25 @@ def build_windows_with_docker():
             "--hidden-import", "pandas",
             "--hidden-import", "openpyxl",
             "--hidden-import", "webbrowser",
+            "--hidden-import", "threading",
+            "--hidden-import", "time",
+            "--hidden-import", "os",
+            "--hidden-import", "sys",
+            "--hidden-import", "zipfile",
+            "--hidden-import", "datetime",
+            "--hidden-import", "json",
+            "--hidden-import", "jinja2",
+            "--hidden-import", "werkzeug",
+            "--hidden-import", "eventlet",
+            "--hidden-import", "dns",
+            "--hidden-import", "dns.resolver",
+            "--hidden-import", "dns.exception",
+            "--collect-all", "flask",
+            "--collect-all", "flask_socketio",
+            "--collect-all", "engineio",
+            "--collect-all", "socketio",
             "--name", "DouyinLiveMonitor",
-            "app_test/app.py"
+            "app_test/app_windows.py"
         ]
         
         subprocess.run(cmd, check=True)
@@ -72,6 +91,7 @@ def build_windows_with_docker():
         print("注意：")
         print("1. 如果构建失败，可能需要先拉取Docker镜像")
         print("2. 运行：docker pull cdrx/pyinstaller-windows:python3")
+        print("3. 生成的exe文件双击后会自动打开浏览器")
         
         return True
         
@@ -93,6 +113,7 @@ def main():
         print()
         print("✅ 构建成功！")
         print("现在可以将 dist/DouyinLiveMonitor.exe 分发给Windows用户")
+        print("双击exe文件会自动启动服务器并打开浏览器")
     else:
         print()
         print("❌ 构建失败！")

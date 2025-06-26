@@ -149,7 +149,6 @@
         <div>
             <button onclick="startMonitor()" id="startBtn">开始监控</button>
             <button onclick="stopMonitor()" id="stopBtn" disabled>停止监控</button>
-            <button onclick="testAPI()" id="testBtn">测试API</button>
             <select id="data_type">
                 <option value="all">导出全部数据</option>
                 <option value="fans">仅导出粉丝榜</option>
@@ -401,40 +400,6 @@
             });
         }
         
-        function testAPI() {
-            const live_id = document.getElementById('live_id').value.trim();
-            if (!live_id) {
-                updateStatus('请输入直播间ID', 'error');
-                return;
-            }
-            
-            addLog(`测试API接口: ${live_id}`, 'info');
-            
-            fetch('/test_api', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `live_id=${live_id}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    addLog('API测试结果:', 'info');
-                    addLog(`粉丝榜API - 状态码: ${data.data.fans_api.status_code}, 内容长度: ${data.data.fans_api.content_length}`, 'api');
-                    addLog(`粉丝榜API - 内容预览: ${data.data.fans_api.content_preview}`, 'api');
-                    addLog(`弹幕API - 状态码: ${data.data.comments_api.status_code}, 内容长度: ${data.data.comments_api.content_length}`, 'api');
-                    addLog(`弹幕API - 内容预览: ${data.data.comments_api.content_preview}`, 'api');
-                    updateStatus('API测试完成，请查看日志', 'success');
-                } else {
-                    updateStatus(data.message, 'error');
-                }
-            })
-            .catch(error => {
-                updateStatus(`测试失败: ${error}`, 'error');
-            });
-        }
-        
         // 初始加载时刷新列表
         refreshLists();
         setInterval(refreshLists, 5000); // 每5秒刷新一次状态
@@ -443,14 +408,22 @@
 
         socket.on('connect', function() {
             addLog('SocketIO连接成功', 'success');
+            console.log('SocketIO连接成功，socket.id:', socket.id);
         });
 
         socket.on('disconnect', function() {
             addLog('SocketIO连接断开', 'error');
+            console.log('SocketIO连接断开');
+        });
+
+        socket.on('connect_error', function(error) {
+            addLog('SocketIO连接错误: ' + error, 'error');
+            console.log('SocketIO连接错误:', error);
         });
 
         socket.on('comments', function(msg) {
             console.log('收到弹幕:', msg);
+            addLog('收到弹幕消息: ' + JSON.stringify(msg), 'danmu');
             if (msg && msg.raw) {
                 addLog(msg.raw, 'danmu');
             } else {
@@ -466,6 +439,7 @@
 
         socket.on('room_info', function(info) {
             console.log('收到房间信息:', info);
+            addLog('收到房间信息: ' + JSON.stringify(info), 'info');
             if (info) {
                 console.log('更新前的房间信息显示:');
                 console.log('- 标题:', document.getElementById('roomTitle').textContent);
@@ -504,6 +478,22 @@
             document.getElementById('roomViewerCount').textContent = '0';
             // 同时清理统计卡片的在线观众数据
             document.getElementById('viewerCount').textContent = '0';
+        });
+
+        socket.on('test_response', function(data) {
+            console.log('收到服务器测试响应:', data);
+            addLog('服务器响应: ' + data.message, 'success');
+        });
+
+        // 添加一个测试函数来手动发送测试数据
+        function testSocketIO() {
+            addLog('测试SocketIO连接...', 'info');
+            socket.emit('test', {message: 'Hello from client'});
+        }
+
+        // 页面加载完成后自动测试SocketIO
+        window.addEventListener('load', function() {
+            setTimeout(testSocketIO, 2000);
         });
     </script>
 </body>

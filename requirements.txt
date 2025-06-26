@@ -4,3 +4,8 @@ websocket-client==1.7.0
 PyExecJS==1.5.1
 mini_racer==0.12.4
 pandas==2.2.2
+flask==3.0.0
+flask-socketio==5.3.6
+python-socketio==5.10.0
+python-engineio==4.8.0
+openpyxl==3.1.2

@@ -1,11 +1,22 @@
 import sys
-sys.path.append("..")  # 让app_test能import到主目录的liveMan.py
+import os
+
+# 获取应用程序的基础路径
+if getattr(sys, 'frozen', False):
+    # 如果是打包后的exe
+    base_path = sys._MEIPASS
+    # 添加主目录到路径
+    sys.path.append(base_path)
+else:
+    # 如果是开发环境
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append("..")  # 让app_test能import到主目录的liveMan.py
+
 from flask import Flask, render_template, request, jsonify, send_file
 from flask_socketio import SocketIO
 import threading
 import time
 import pandas as pd
-import os
 import zipfile
 from datetime import datetime
 from liveMan import DouyinLiveWebFetcher
@@ -81,14 +92,20 @@ def start_monitor():
     
     def start_monitoring():
         try:
+            # 处理打包后的路径
+            if getattr(sys, 'frozen', False):
+                # 打包后的路径
+                sign_js_path = os.path.join(base_path, 'sign.js')
+            else:
+                # 开发环境路径
+                sign_js_path = os.path.join(os.path.dirname(base_path), 'sign.js')
+            
             # 临时修改generateSignature函数的默认路径
-            import sys
-            sys.path.append("..")
             from liveMan import generateSignature
             
             # 修改generateSignature函数的默认script_file路径
             import types
-            def new_generate_signature(wss, script_file='../sign.js'):
+            def new_generate_signature(wss, script_file=sign_js_path):
                 return generateSignature(wss, script_file)
             
             # 替换liveMan模块中的generateSignature函数
@@ -237,20 +254,6 @@ def check_data():
         'fans_sample': latest_fans[:3] if latest_fans else []
     })
 
-@socketio.on('test')
-def handle_test(data):
-    print(f"收到客户端测试消息: {data}")
-    socketio.emit('test_response', {'message': 'Hello from server', 'timestamp': datetime.now().isoformat()})
-
-@socketio.on('connect')
-def handle_connect():
-    print(f"客户端连接: {request.sid}")
-    socketio.emit('test_response', {'message': '连接成功', 'timestamp': datetime.now().isoformat()})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    print(f"客户端断开: {request.sid}")
-
 def open_browser():
     """延迟打开浏览器"""
     time.sleep(2)  # 等待服务器启动
@@ -274,4 +277,4 @@ if __name__ == '__main__':
     browser_thread.start()
     
     # 启动Flask服务器
-    socketio.run(app, debug=False, port=5001, host='127.0.0.1')
+    socketio.run(app, debug=False, port=5001, host='127.0.0.1') 

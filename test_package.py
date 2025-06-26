@@ -19,7 +19,7 @@ def test_packaged_app():
     exe_path = "dist/DouyinLiveMonitor"
     if not os.path.exists(exe_path):
         print(f"错误：找不到可执行文件 {exe_path}")
-        print("请先运行打包脚本：python3 quick_build.py")
+        print("请先运行打包脚本：python build_windows.py")
         return False
     
     print(f"找到可执行文件：{exe_path}")
