@@ -38,7 +38,7 @@ def patched_popen_encoding(encoding='utf-8'):
         yield
 
 
-def generateSignature(wss, script_file='sign.js'):
+def generateSignature(wss, script_file='../sign.js'):
     """
     出现gbk编码问题则修改 python模块subprocess.py的源码中Popen类的__init__函数参数encoding值为 "utf-8"
     """
@@ -95,18 +95,19 @@ class DouyinLiveWebFetcher:
         :param live_id: 直播间的直播id，打开直播间web首页的链接如：https://live.douyin.com/261378947940，
                         其中的261378947940即是live_id
         """
-        self.__ttwid = None
-        self.__room_id = None
         self.live_id = live_id
-        self.live_url = "https://live.douyin.com/"
-        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " \
-                          "Chrome/120.0.0.0 Safari/537.36"
         self.on_message = on_message
         self.on_room_info = on_room_info
         self.on_rank_list = None  # 新增，推送粉丝榜
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        self.live_url = "https://live.douyin.com/"
+        self.__ttwid = None
+        self.__room_id = None
         self.room_title = "直播间"
-        self.room_status = "未知"
+        self.room_status = None
         self.viewer_count = "0"
+        self.ws = None
+        self._running = True  # 添加运行状态标志
     
     def start(self):
         # 启动时主动获取一次房间状态
@@ -114,7 +115,24 @@ class DouyinLiveWebFetcher:
         self._connectWebSocket()
     
     def stop(self):
-        self.ws.close()
+        """停止监控，关闭WebSocket连接和清理资源"""
+        try:
+            # 设置停止标志
+            self._running = False
+            
+            # 关闭WebSocket连接
+            if hasattr(self, 'ws') and self.ws:
+                self.ws.close()
+                print("【√】WebSocket连接已关闭")
+            
+            # 清理资源
+            self.__ttwid = None
+            self.__room_id = None
+            self.room_status = None
+            
+            print("【√】监控已停止")
+        except Exception as e:
+            print(f"【X】停止监控时出错: {e}")
     
     @property
     def ttwid(self):
@@ -243,8 +261,10 @@ class DouyinLiveWebFetcher:
         """
         发送心跳包
         """
-        while True:
+        while self._running:
             try:
+                if not self._running:
+                    break
                 heartbeat = PushFrame(payload_type='hb').SerializeToString()
                 self.ws.send(heartbeat, websocket.ABNF.OPCODE_PING)
                 print("【√】发送心跳包")
@@ -252,7 +272,11 @@ class DouyinLiveWebFetcher:
                 print("【X】心跳包检测错误: ", e)
                 break
             else:
-                time.sleep(5)
+                # 使用更短的睡眠时间，以便更快响应停止信号
+                for _ in range(50):  # 5秒分成50次，每次0.1秒
+                    if not self._running:
+                        break
+                    time.sleep(0.1)
     
     def _wsOnOpen(self, ws):
         """
@@ -499,6 +523,7 @@ class DouyinLiveWebFetcher:
         message = RoomRankMessage().parse(payload)
         ranks_list = message.ranks_list
         print("收到排行榜 ranks_list:", ranks_list)
+        print("ranks_list长度:", len(ranks_list) if ranks_list else 0)
         msg = f"【直播间排行榜msg】{ranks_list}"
         print(msg)
         if self.on_message:
@@ -509,25 +534,47 @@ class DouyinLiveWebFetcher:
                 "viewer_count": self.viewer_count,
                 "status": self.room_status
             })
-        # 新增：推送粉丝榜到前端
+        
+        # 新增：推送粉丝榜到前端（先用WebSocket榜单）
+        fans = []
+        for rank in ranks_list:
+            user = getattr(rank, 'user', None)
+            print("rank user:", user)  # 增加日志
+            if user:
+                avatar = ""
+                avatar_thumb = getattr(user, "avatar_thumb", None)
+                if avatar_thumb:
+                    url_list = getattr(avatar_thumb, "url_list_list", [])
+                    if url_list:
+                        avatar = url_list[0]
+                fans.append({
+                    "nick_name": getattr(user, "nick_name", ""),
+                    "avatar": avatar,
+                    "id": getattr(user, "id", ""),         # 数字ID
+                    "idStr": getattr(user, "id_str", "")   # 字符串ID
+                })
+        print("推送到前端的fans(WebSocket):", fans)  # 增加日志
+
+        # 新增：补全HTTP粉丝榜
+        try:
+            print(f"尝试获取HTTP粉丝榜，room_id: {self.room_id}")
+            http_fans = self.get_full_fans_rank(self.room_id)
+            if http_fans and len(http_fans) > len(fans):
+                print(f"HTTP粉丝榜获取成功，共{len(http_fans)}条，替换WebSocket榜单")
+                fans = http_fans
+            else:
+                print(f"HTTP粉丝榜获取失败或数据不足，保留WebSocket榜单({len(fans)}条)")
+        except Exception as e:
+            print(f"HTTP粉丝榜采集异常: {e}")
+        
+        print("最终推送到前端的fans:", fans)
+        print("fans长度:", len(fans))
+        
         if hasattr(self, 'on_rank_list') and callable(self.on_rank_list):
-            fans = []
-            for rank in ranks_list:
-                user = getattr(rank, 'user', None)
-                print("rank user:", user)  # 增加日志
-                if user:
-                    avatar = ""
-                    avatar_thumb = getattr(user, "avatar_thumb", None)
-                    if avatar_thumb:
-                        url_list = getattr(avatar_thumb, "url_list_list", [])
-                        if url_list:
-                            avatar = url_list[0]
-                    fans.append({
-                        "nick_name": getattr(user, "nick_name", ""),
-                        "avatar": avatar
-                    })
-            print("推送到前端的fans:", fans)  # 增加日志
+            print("调用on_rank_list回调函数")
             self.on_rank_list(fans)
+        else:
+            print("on_rank_list回调函数不存在或不可调用")
     
     def _parseControlMsg(self, payload):
         message = ControlMessage().parse(payload)
@@ -570,3 +617,40 @@ class DouyinLiveWebFetcher:
                 "viewer_count": self.viewer_count,
                 "status": self.room_status
             })
+
+    def get_full_fans_rank(self, room_id):
+        url = f"https://webcast.amemv.com/webcast/ranklist/fans/?room_id={room_id}&type=1&count=100"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Referer": f"https://live.douyin.com/{room_id}",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-site",
+        }
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            print("HTTP粉丝榜原始返回：", resp.text[:500])  # 只打印前500字符
+            if resp.status_code != 200:
+                print(f"HTTP粉丝榜请求失败，状态码: {resp.status_code}")
+                return []
+            
+            data = resp.json()
+            fans = []
+            for item in data.get("data", {}).get("ranks", []):
+                user = item.get("user", {})
+                fans.append({
+                    "user_id": user.get("id_str"),
+                    "nickname": user.get("nickname"),
+                    "score": item.get("score"),
+                    "avatar": user.get("avatar_thumb", {}).get("url_list", [""])[0] if user.get("avatar_thumb") else "",
+                    "rank": item.get("rank"),
+                })
+            print(f"HTTP粉丝榜获取成功，共{len(fans)}条")
+            return fans
+        except Exception as e:
+            print("HTTP粉丝榜获取失败：", e)
+            return []

@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抖音直播间监控系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #ff0050;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select, button {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #ff0050;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #e60046;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4f8;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+        }
+        .status.error {
+            background-color: #ffebee;
+            border-left-color: #f44336;
+        }
+        .status.success {
+            background-color: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+        .data-section {
+            margin-top: 30px;
+        }
+        .log-section {
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        .log-content {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+        .log-time {
+            color: #888;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+            flex: 1;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff0050;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>抖音直播间监控系统</h1>
+        
+        <div class="input-group">
+            <label for="live_id">直播间ID:</label>
+            <input type="text" id="live_id" placeholder="输入抖音直播间ID (例如: 123456789)">
+        </div>
+        
+        <div>
+            <button onclick="startMonitor()" id="startBtn">开始监控</button>
+            <button onclick="stopMonitor()" id="stopBtn" disabled>停止监控</button>
+            <button onclick="testAPI()" id="testBtn">测试API</button>
+            <select id="data_type">
+                <option value="all">导出全部数据</option>
+                <option value="fans">仅导出粉丝榜</option>
+                <option value="comments">仅导出弹幕</option>
+            </select>
+            <button onclick="exportData()">导出数据</button>
+        </div>
+        
+        <div class="status" id="status">
+            状态: 等待操作...
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="monitoringCount">0</div>
+                <div class="stat-label">监控中的直播间</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="dataCount">0</div>
+                <div class="stat-label">有数据的直播间</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="viewerCount">0</div>
+                <div class="stat-label">在线观众</div>
+            </div>
+        </div>
+        
+        <div class="data-section">
+            <h3>房间信息:</h3>
+            <div id="roomInfo" style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                <p><strong>标题:</strong> <span id="roomTitle">未知</span></p>
+                <p><strong>状态:</strong> <span id="roomStatus">未知</span></p>
+                <p><strong>在线观众:</strong> <span id="roomViewerCount">0</span></p>
+            </div>
+            
+            <h3>当前监控中的直播间:</h3>
+            <div id="monitoring_list"></div>
+            
+            <h3>已有数据的直播间:</h3>
+            <div id="available_data"></div>
+        </div>
+        
+        <div class="log-section">
+            <h3>实时日志:</h3>
+            <div class="log-content" id="logContent">
+                <div class="log-entry">
+                    <span class="log-time">[系统]</span> 监控系统已启动，等待操作...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isMonitoring = false;
+        
+        function addLog(message, type = 'info') {
+            const logContent = document.getElementById('logContent');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            let prefix = '[系统]';
+            if (type === 'error') prefix = '[错误]';
+            else if (type === 'success') prefix = '[成功]';
+            else if (type === 'api') prefix = '[API]';
+            else if (type === 'danmu') prefix = '[弹幕]';
+            else if (type === 'fans') prefix = '[粉丝榜]';
+            
+            logEntry.innerHTML = `<span class="log-time">[${timestamp}] ${prefix}</span> ${message}`;
+            logContent.appendChild(logEntry);
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `状态: ${message}`;
+            statusDiv.className = `status ${type}`;
+            addLog(message, type);
+        }
+        
+        function updateStats(data) {
+            document.getElementById('monitoringCount').textContent = data.monitoring.length;
+            document.getElementById('dataCount').textContent = data.available_data.length;
+        }
+        
+        function refreshLists() {
+            fetch('/get_monitoring_status')
+                .then(response => response.json())
+                .then(data => {
+                    let monitoringHtml = '<ul>';
+                    if (data.monitoring.length === 0) {
+                        monitoringHtml += '<li>暂无监控中的直播间</li>';
+                    } else {
+                        data.monitoring.forEach(id => {
+                            monitoringHtml += `<li>${id} (监控中)</li>`;
+                        });
+                    }
+                    monitoringHtml += '</ul>';
+                    document.getElementById('monitoring_list').innerHTML = monitoringHtml;
+                    
+                    let availableHtml = '<ul>';
+                    if (data.available_data.length === 0) {
+                        availableHtml += '<li>暂无数据</li>';
+                    } else {
+                        data.available_data.forEach(id => {
+                            availableHtml += `<li>${id}</li>`;
+                        });
+                    }
+                    availableHtml += '</ul>';
+                    document.getElementById('available_data').innerHTML = availableHtml;
+                    
+                    updateStats(data);
+                })
+                .catch(error => {
+                    addLog(`获取状态失败: ${error}`, 'error');
+                });
+        }
+        
+        function startMonitor() {
+            const live_id = document.getElementById('live_id').value.trim();
+            if (!live_id) {
+                updateStatus('请输入直播间ID', 'error');
+                return;
+            }
+            
+            addLog(`开始监控直播间: ${live_id}`, 'info');
+            
+            fetch('/start_monitor', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `live_id=${live_id}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateStatus(data.message, 'success');
+                    isMonitoring = true;
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                } else {
+                    updateStatus(data.message, 'error');
+                }
+                refreshLists();
+            })
+            .catch(error => {
+                updateStatus(`请求失败: ${error}`, 'error');
+            });
+        }
+        
+        function stopMonitor() {
+            const live_id = document.getElementById('live_id').value.trim();
+            if (!live_id) {
+                updateStatus('请输入直播间ID', 'error');
+                return;
+            }
+            
+            addLog(`停止监控直播间: ${live_id}`, 'info');
+            updateStatus('正在停止监控...', 'info');
+            
+            fetch('/stop_monitor', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `live_id=${live_id}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateStatus(data.message, 'success');
+                    isMonitoring = false;
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                    
+                    // 清理房间信息显示
+                    document.getElementById('roomTitle').textContent = '未知';
+                    document.getElementById('roomStatus').textContent = '未知';
+                    document.getElementById('roomViewerCount').textContent = '0';
+                    // 同时清理统计卡片的在线观众数据
+                    document.getElementById('viewerCount').textContent = '0';
+                    
+                    addLog('监控已成功停止', 'success');
+                } else {
+                    updateStatus(data.message, 'error');
+                    addLog(`停止监控失败: ${data.message}`, 'error');
+                }
+                refreshLists();
+            })
+            .catch(error => {
+                updateStatus(`请求失败: ${error}`, 'error');
+                addLog(`停止监控请求失败: ${error}`, 'error');
+            });
+        }
+        
+        function exportData() {
+            const live_id = document.getElementById('live_id').value.trim();
+            const data_type = document.getElementById('data_type').value;
+            
+            if (!live_id) {
+                updateStatus('请输入直播间ID', 'error');
+                return;
+            }
+            
+            addLog(`导出数据: ${live_id} (${data_type})`, 'info');
+            
+            fetch('/export_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `live_id=${live_id}&data_type=${data_type}`
+            })
+            .then(response => {
+                if (response.ok) {
+                    // 检查响应类型
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        // 如果是JSON响应（错误情况）
+                        return response.json().then(data => {
+                            throw new Error(data.message || '导出失败');
+                        });
+                    } else {
+                        // 如果是文件下载
+                        return response.blob();
+                    }
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `douyin_data_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                updateStatus('数据导出成功！', 'success');
+                addLog('数据文件已下载', 'success');
+            })
+            .catch(error => {
+                updateStatus(`导出失败: ${error}`, 'error');
+                addLog(`导出错误: ${error}`, 'error');
+            });
+        }
+        
+        function testAPI() {
+            const live_id = document.getElementById('live_id').value.trim();
+            if (!live_id) {
+                updateStatus('请输入直播间ID', 'error');
+                return;
+            }
+            
+            addLog(`测试API接口: ${live_id}`, 'info');
+            
+            fetch('/test_api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `live_id=${live_id}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    addLog('API测试结果:', 'info');
+                    addLog(`粉丝榜API - 状态码: ${data.data.fans_api.status_code}, 内容长度: ${data.data.fans_api.content_length}`, 'api');
+                    addLog(`粉丝榜API - 内容预览: ${data.data.fans_api.content_preview}`, 'api');
+                    addLog(`弹幕API - 状态码: ${data.data.comments_api.status_code}, 内容长度: ${data.data.comments_api.content_length}`, 'api');
+                    addLog(`弹幕API - 内容预览: ${data.data.comments_api.content_preview}`, 'api');
+                    updateStatus('API测试完成，请查看日志', 'success');
+                } else {
+                    updateStatus(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                updateStatus(`测试失败: ${error}`, 'error');
+            });
+        }
+        
+        // 初始加载时刷新列表
+        refreshLists();
+        setInterval(refreshLists, 5000); // 每5秒刷新一次状态
+
+        const socket = io();
+
+        socket.on('connect', function() {
+            addLog('SocketIO连接成功', 'success');
+        });
+
+        socket.on('disconnect', function() {
+            addLog('SocketIO连接断开', 'error');
+        });
+
+        socket.on('comments', function(msg) {
+            console.log('收到弹幕:', msg);
+            if (msg && msg.raw) {
+                addLog(msg.raw, 'danmu');
+            } else {
+                addLog('收到弹幕消息', 'danmu');
+            }
+        });
+
+        socket.on('fans', function(fans) {
+            console.log('收到粉丝榜:', fans);
+            addLog('粉丝榜更新，共' + fans.length + '人', 'fans');
+            // 你可以在这里把fans渲染到页面表格
+        });
+
+        socket.on('room_info', function(info) {
+            console.log('收到房间信息:', info);
+            if (info) {
+                console.log('更新前的房间信息显示:');
+                console.log('- 标题:', document.getElementById('roomTitle').textContent);
+                console.log('- 状态:', document.getElementById('roomStatus').textContent);
+                console.log('- 在线观众:', document.getElementById('roomViewerCount').textContent);
+                console.log('- 统计卡片在线观众:', document.getElementById('viewerCount').textContent);
+                
+                if (info.title) document.getElementById('roomTitle').textContent = info.title;
+                if (info.status) document.getElementById('roomStatus').textContent = info.status;
+                if (info.viewer_count) {
+                    document.getElementById('roomViewerCount').textContent = info.viewer_count;
+                    // 同时更新统计卡片的在线观众数据
+                    document.getElementById('viewerCount').textContent = info.viewer_count;
+                }
+                
+                console.log('更新后的房间信息显示:');
+                console.log('- 标题:', document.getElementById('roomTitle').textContent);
+                console.log('- 状态:', document.getElementById('roomStatus').textContent);
+                console.log('- 在线观众:', document.getElementById('roomViewerCount').textContent);
+                console.log('- 统计卡片在线观众:', document.getElementById('viewerCount').textContent);
+                
+                addLog(`房间信息更新: ${info.title} - ${info.status} - ${info.viewer_count}人`, 'info');
+            }
+        });
+
+        socket.on('monitor_stopped', function(data) {
+            console.log('收到监控停止通知:', data);
+            addLog('监控已停止', 'info');
+            isMonitoring = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            // 清理房间信息显示
+            document.getElementById('roomTitle').textContent = '未知';
+            document.getElementById('roomStatus').textContent = '未知';
+            document.getElementById('roomViewerCount').textContent = '0';
+            // 同时清理统计卡片的在线观众数据
+            document.getElementById('viewerCount').textContent = '0';
+        });
+    </script>
+</body>
+</html>

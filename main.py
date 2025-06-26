@@ -86,7 +86,7 @@ def export_rank_list():
     return send_file(file_path, as_attachment=True)
 
 if __name__ == '__main__':
-    live_id = '549536031040'
+    live_id = '147937241190'
     room = DouyinLiveWebFetcher(live_id, on_message=on_new_message, on_room_info=on_room_info)
     setattr(room, 'on_rank_list', on_rank_list)
     threading.Thread(target=room.start, daemon=True).start()
