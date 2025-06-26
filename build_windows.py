@@ -141,7 +141,7 @@ def build_windows_with_docker():
             "--hidden-import", "pandas",
             "--hidden-import", "openpyxl",
             "--hidden-import", "webbrowser",
-            "--name", "DouyinLiveMonitor",
+            "-n", "DouyinLiveMonitor",
             "app_test/app_windows.py"
         ]
         
